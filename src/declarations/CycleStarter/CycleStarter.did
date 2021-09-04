@@ -1,0 +1,12 @@
+type Project = 
+ record {
+   description: text;
+   id: nat;
+   imgUrl: text;
+   link: text;
+   name: text;
+ };
+service : {
+  getICPBalance: () -> (int) query;
+  getProjects: () -> (vec Project) query;
+}
