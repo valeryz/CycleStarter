@@ -1,4 +1,8 @@
-import Array "mo:base/Array"
+import Principal "mo:base/Principal";
+import Array "mo:base/Array";
+import D "mo:base/Debug";
+import R "mo:base/Result";
+
 actor {
 
     type Project = {
@@ -9,6 +13,7 @@ actor {
         imgUrl : Text;
     };
 
+    /// We maintain a static list of projects here. For the first iteration (Hackathon), to update the list, we'll have to redeploy the canister.
     let projects : [Project] = [
         {
             id = 0;
@@ -56,5 +61,21 @@ actor {
      public shared query func getICPBalance() : async Int {
         // return ICP number based on principal id in msg.caller
         10;
+     };
+
+     public shared ({caller}) func donateCyclesToProject(name : Text, cycles : Nat) : async R.Result<(), Text> {
+         // Donate Cycles.
+         D.print(debug_show("donateCyclesToProject  msg.caller: ", caller, "name: ", name, " cycles ", cycles));
+         #ok
+     };
+
+     public shared ({caller}) func claimDonatedCycles(name : Text, cycles : Nat) : async R.Result<(), Text> {
+         D.print(debug_show("claimDonatedCycles  msg.caller: ", caller));
+         #ok
+     };
+
+    public shared({ caller }) func callerPrincipal() : async Principal {
+        return caller;
     };
+     
 };
