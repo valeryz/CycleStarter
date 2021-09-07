@@ -1,3 +1,8 @@
+type Result = 
+ variant {
+   err: text;
+   ok;
+ };
 type Project = 
  record {
    description: text;
@@ -7,6 +12,8 @@ type Project =
    name: text;
  };
 service : {
+  claimDonatedCycles: (text, nat) -> (Result);
+  donateCyclesToProject: (text, nat) -> (Result);
   getICPBalance: () -> (int) query;
   getProjects: () -> (vec Project) query;
 }
