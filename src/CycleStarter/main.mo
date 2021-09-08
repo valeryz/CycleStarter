@@ -30,6 +30,7 @@ actor {
         amount : Nat;
     };
 
+    // We won't accept more than this amount :)
     let capacity : Nat = 1_000_000_000_000_000;
 
     stable var balance : Nat = 0;
@@ -78,15 +79,16 @@ actor {
         };
     };
 
-    public query func pendingDonations() : async [Donation] {
+    // These are in fact query functions, but it is important that they are not stale.
+    public shared func pendingDonations() : async [Donation] {
         pending
     };
 
-    public query func currentDonations() : async [Donation] {
+    public shared func currentDonations() : async [Donation] {
         donations
     };
 
-    public query func receivedTransfers(): async [(Principal, Nat64)] {
+    public shared func receivedTransfers(): async [(Principal, Nat64)] {
         received_transfers
     };
 
@@ -118,7 +120,7 @@ actor {
         return { accepted = 0 };
     };
 
-    public shared(msg) func wallet_balance() : async Nat {
+    public shared func wallet_balance() : async Nat {
         return balance;
     };
 
