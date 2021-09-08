@@ -3,8 +3,11 @@ import Array "mo:base/Array";
 import D "mo:base/Debug";
 import R "mo:base/Result";
 import N "mo:base/Nat";
+import Nat32 "mo:base/Nat32";
 import Nat64 "mo:base/Nat64";
 import Cycles "mo:base/ExperimentalCycles";
+import Hash "mo:base/Hash";
+import Text "mo:base/Text";
 
 actor {
 
@@ -20,46 +23,63 @@ actor {
         project_id : Nat;
         from : Principal;
         amount : Nat;
+        message : Text;
+    };
+
+    type DonateChallenge = {
+        amount : Nat;
     };
 
     let capacity : Nat = 1_000_000_000_000_000;
 
     stable var balance : Nat = 0;
 
-    /// All donations.
+    // Confirmed donations.
     stable var donations : [Donation] = [];
 
-    stable var intents : [Donation] = [];
+    // Pending donations.
+    stable var pending : [Donation] = [];
 
-    var project_canisters : [{ project_id: Nat; canister_id: Principal; }] = [];
-
-
+    // This is only for debugging to capture incoming transfer attempts.
     stable var received_transfers : [(Principal, Nat64)] = [];
-
 
     func findProjectById(project_id : Nat) : ?Project {
         Array.find<Project>(projects,
                             func (p : Project) : Bool { p.id == project_id });
     };
+
+    // Calculate a unique hash from the project metadata.
+    func calculateProjectHash(p : Project) : Hash.Hash {
+        Text.hash(p.name);
+    };
     
     // Donate Cycles to projects.
     //
-    // We need to first declare the intent to donate a certain amount
-    // to a certain project, so that when later the payment arrives,
-    // we can attribute it to a given project/principal.
-    public shared ({caller}) func donateCyclesToProject(project_id : Nat, cycles : Nat) : async R.Result<(), Text> {
+    // This is only a declaration of intent to send cycles or ICP.  In
+    // case of success, it returns a donation challenge - an exact
+    // amount to donate, that is close to the intent.
+    public shared ({caller}) func donateCycles(project_id : Nat, cycles : Nat, message : Text)
+      : async R.Result<DonateChallenge, Text> {
         D.print(debug_show("donateCyclesToProject msg.caller: ", caller,
                            "project: ", project_id, " cycles ", cycles));
-        // TODO(valeryz): check if the project exists in the list.
-        intents := Array.append<Donation>(intents, [{project_id=project_id;
-                                                     from=caller;
-                                                     amount=cycles
-                                                    }]);
-        #ok
+        switch (findProjectById(project_id)) {
+        case (?project) {
+                 let amount = (cycles / 100_000) * 100_000 + Nat32.toNat((calculateProjectHash(project) % 10000));
+                 pending := Array.append<Donation>(donations, [{project_id = project_id;
+                                                                from = caller;
+                                                                amount = amount;
+                                                                message = message;
+                                                               }]);
+                 #ok({amount = amount})
+             };
+        case null {
+                 #err("Cannot find project")
+             };
+        };
     };
 
     public query func pendingDonations() : async [Donation] {
-        intents
+        pending
     };
 
     public query func currentDonations() : async [Donation] {
@@ -71,35 +91,35 @@ actor {
     };
 
     // Receive the cycles up to the allowed capacity and the requested amount.
+    //
+    // It is expected that the donator will send the exact amount as in the challenge, and this
+    // will allow us to identify the project the donation is for.
     public shared({ caller }) func wallet_receive() : async { accepted: Nat64 } {
         D.print(debug_show("wallet_receive  caller: ", caller));
         var amount = Cycles.available();
         received_transfers := Array.append<(Principal, Nat64)>([(caller, Nat64.fromNat(amount))], received_transfers);
-        var total_accepted = 0;
         var index = 0;
         var keep_indexes : [Nat] = [];
-        while (index < intents.size() and amount > 0) {
-            if (intents[index].from == caller) {
-                let limit = if (capacity - balance <= intents[index].amount)
-                              capacity - balance
-                            else
-                              intents[index].amount;
-                let accepted =
-                  if (amount <= limit) amount
-                else limit;
+        while (index < pending.size() and amount > 0) {
+            if (pending[index].amount == amount) {
+                let limit =  capacity - balance;
+                let accepted = if (amount <= limit) amount else limit;
                 let deposit = Cycles.accept(accepted);
-                total_accepted += accepted;
                 assert (deposit == accepted);
                 balance += accepted;
                 amount -= accepted;
-            } else {
-                keep_indexes := Array.append<Nat>(keep_indexes, [index]);
+                donations := Array.append([pending[index]], donations);
+                // Remove this element from the array.
+                pending := Array.filter(pending, func (d: Donation) : Bool { d.amount == amount });
+                return { accepted = Nat64.fromNat(accepted) };
             };
             index += 1;
         };
-        // Remove fulfilled indexes from the intents array.
-        intents := Array.map<Nat, Donation>(keep_indexes, func (i : Nat) { intents[i] });
-        { accepted = Nat64.fromNat(total_accepted) };
+        return { accepted = 0 };
+    };
+
+    public shared(msg) func wallet_balance() : async Nat {
+        return balance;
     };
 
     public shared ({caller}) func claimDonatedCycles(name : Text, cycles : Nat64) : async R.Result<(), Text> {
@@ -107,8 +127,9 @@ actor {
          #ok
     };
 
-
-    /// We maintain a static list of projects here. For the first iteration (Hackathon), to update the list, we'll have to redeploy the canister.
+    /// We maintain a static list of projects here.
+    /// For the first iteration (Hackathon), to update the list, we'll simply have to
+    /// redeploy the canister.
     let projects : [Project] = [
         {
             id = 0;
@@ -153,6 +174,9 @@ actor {
         projects;
     };
 
+    // This is not being used, but it was in the original version of the frontend.
+    // so keeping it to avoid a possible breakage.
+    // TODO(valeryz): remove?
     public shared query func getICPBalance() : async Int {
         // return ICP number based on principal id in msg.caller
         10;
@@ -160,13 +184,5 @@ actor {
 
     public shared({ caller }) func callerPrincipal() : async Principal {
         return caller;
-    };
-
-    public shared(msg) func wallet_balance() : async Nat {
-        return balance;
-    };
-
-    public shared({caller}) func balances() : async [(Nat, Text, Nat)] {
-        [(1, "wtf", 0)]
     };
 };
