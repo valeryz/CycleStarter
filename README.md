@@ -50,6 +50,16 @@ $ dfx wallet --network ic send x5dnh-yaaaa-aaaaj-aaaqa-cai 1006355
 4. Check that your donation is now confirmed.
 ```console
 $ dfx canister --network ic call x5dnh-yaaaa-aaaaj-aaaqa-cai currentDonations
+(
+  vec {
+    record {
+      from = principal "arax4-whwdp-vhmtv-4eawt-pzdg5-jkxp3-x434e-ygygi-2gvtt-zphaa-aqe";
+      message = "best of luck with your project";
+      project_id = 2 : nat;
+      amount = 1006_355 : nat;
+    };
+  },
+)
 ```
 
 You can also check the total balance of donated cycles:
