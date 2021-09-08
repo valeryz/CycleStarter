@@ -2,6 +2,9 @@ import Principal "mo:base/Principal";
 import Array "mo:base/Array";
 import D "mo:base/Debug";
 import R "mo:base/Result";
+import N "mo:base/Nat";
+import Nat64 "mo:base/Nat64";
+import Cycles "mo:base/ExperimentalCycles";
 
 actor {
 
@@ -12,6 +15,98 @@ actor {
         description : Text;
         imgUrl : Text;
     };
+
+    type Donation = {
+        project_id : Nat;
+        from : Principal;
+        amount : Nat;
+    };
+
+    let capacity : Nat = 1_000_000_000_000_000;
+
+    stable var balance : Nat = 0;
+
+    /// All donations.
+    stable var donations : [Donation] = [];
+
+    stable var intents : [Donation] = [];
+
+    var project_canisters : [{ project_id: Nat; canister_id: Principal; }] = [];
+
+
+    stable var received_transfers : [(Principal, Nat64)] = [];
+
+
+    func findProjectById(project_id : Nat) : ?Project {
+        Array.find<Project>(projects,
+                            func (p : Project) : Bool { p.id == project_id });
+    };
+    
+    // Donate Cycles to projects.
+    //
+    // We need to first declare the intent to donate a certain amount
+    // to a certain project, so that when later the payment arrives,
+    // we can attribute it to a given project/principal.
+    public shared ({caller}) func donateCyclesToProject(project_id : Nat, cycles : Nat) : async R.Result<(), Text> {
+        D.print(debug_show("donateCyclesToProject msg.caller: ", caller,
+                           "project: ", project_id, " cycles ", cycles));
+        // TODO(valeryz): check if the project exists in the list.
+        intents := Array.append<Donation>(intents, [{project_id=project_id;
+                                                     from=caller;
+                                                     amount=cycles
+                                                    }]);
+        #ok
+    };
+
+    public query func pendingDonations() : async [Donation] {
+        intents
+    };
+
+    public query func currentDonations() : async [Donation] {
+        donations
+    };
+
+    public query func receivedTransfers(): async [(Principal, Nat64)] {
+        received_transfers
+    };
+
+    // Receive the cycles up to the allowed capacity and the requested amount.
+    public shared({ caller }) func wallet_receive() : async { accepted: Nat64 } {
+        D.print(debug_show("wallet_receive  caller: ", caller));
+        var amount = Cycles.available();
+        received_transfers := Array.append<(Principal, Nat64)>([(caller, Nat64.fromNat(amount))], received_transfers);
+        var total_accepted = 0;
+        var index = 0;
+        var keep_indexes : [Nat] = [];
+        while (index < intents.size() and amount > 0) {
+            if (intents[index].from == caller) {
+                let limit = if (capacity - balance <= intents[index].amount)
+                              capacity - balance
+                            else
+                              intents[index].amount;
+                let accepted =
+                  if (amount <= limit) amount
+                else limit;
+                let deposit = Cycles.accept(accepted);
+                total_accepted += accepted;
+                assert (deposit == accepted);
+                balance += accepted;
+                amount -= accepted;
+            } else {
+                keep_indexes := Array.append<Nat>(keep_indexes, [index]);
+            };
+            index += 1;
+        };
+        // Remove fulfilled indexes from the intents array.
+        intents := Array.map<Nat, Donation>(keep_indexes, func (i : Nat) { intents[i] });
+        { accepted = Nat64.fromNat(total_accepted) };
+    };
+
+    public shared ({caller}) func claimDonatedCycles(name : Text, cycles : Nat64) : async R.Result<(), Text> {
+         D.print(debug_show("claimDonatedCycles  msg.caller: ", caller));
+         #ok
+    };
+
 
     /// We maintain a static list of projects here. For the first iteration (Hackathon), to update the list, we'll have to redeploy the canister.
     let projects : [Project] = [
@@ -58,24 +153,20 @@ actor {
         projects;
     };
 
-     public shared query func getICPBalance() : async Int {
+    public shared query func getICPBalance() : async Int {
         // return ICP number based on principal id in msg.caller
         10;
-     };
-
-     public shared ({caller}) func donateCyclesToProject(name : Text, cycles : Nat) : async R.Result<(), Text> {
-         // Donate Cycles.
-         D.print(debug_show("donateCyclesToProject  msg.caller: ", caller, "name: ", name, " cycles ", cycles));
-         #ok
-     };
-
-     public shared ({caller}) func claimDonatedCycles(name : Text, cycles : Nat) : async R.Result<(), Text> {
-         D.print(debug_show("claimDonatedCycles  msg.caller: ", caller));
-         #ok
-     };
+    };
 
     public shared({ caller }) func callerPrincipal() : async Principal {
         return caller;
     };
-     
+
+    public shared(msg) func wallet_balance() : async Nat {
+        return balance;
+    };
+
+    public shared({caller}) func balances() : async [(Nat, Text, Nat)] {
+        [(1, "wtf", 0)]
+    };
 };

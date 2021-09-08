@@ -11,9 +11,25 @@ type Project =
    link: text;
    name: text;
  };
+type Donation = 
+ record {
+   amount: nat;
+   from: principal;
+   project_id: nat;
+ };
 service : {
-  claimDonatedCycles: (text, nat) -> (Result);
-  donateCyclesToProject: (text, nat) -> (Result);
+  balances: () -> (vec record {
+                         nat;
+                         text;
+                         nat;
+                       });
+  callerPrincipal: () -> (principal);
+  claimDonatedCycles: (text, nat64) -> (Result);
+  currentDonations: () -> (vec Donation) query;
+  donateCyclesToProject: (nat, nat) -> (Result);
   getICPBalance: () -> (int) query;
   getProjects: () -> (vec Project) query;
+  pendingDonations: () -> (vec Donation) query;
+  wallet_balance: () -> (nat);
+  wallet_receive: () -> (record {accepted: nat64;});
 }
