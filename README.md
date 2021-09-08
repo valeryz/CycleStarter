@@ -15,7 +15,7 @@ At the moment, we have only 20%-30% of what could be done in a Hackathon, becaus
 
 1. Get the list of all projects:
 
-```
+```console
 $ dfx canister --network ic call x5dnh-yaaaa-aaaaj-aaaqa-cai getProjects
 ```
 
@@ -23,12 +23,12 @@ This returns a list of projects.  Choose the one you are willing to support. Sup
 
 
 2. Declare that you are willing to support a project and send it some cycles:
-```
+```console
 $ dfx canister --network ic call x5dnh-yaaaa-aaaaj-aaaqa-cai donateCycles '(2, 1000000, "Best of luck with your project")'
 (variant { ok = record { amount = 1_006_355 : nat } })
 ```
 You can check that there is a pending donation in the canister now:
-```
+```console
 $ dfx canister --network ic call x5dnh-yaaaa-aaaaj-aaaqa-cai pendingDonations
 (
   vec {
@@ -43,17 +43,17 @@ $ dfx canister --network ic call x5dnh-yaaaa-aaaaj-aaaqa-cai pendingDonations
 ```
 
 3. Note the exact number of cycles that CycleStarter wants you to send to it. By that extra amount of (6355) CycleStarter will determine to which projects funds are sent.  Send this number of cycles to the CycleStarter canister.
-```
+```console
 $ dfx wallet --network ic send x5dnh-yaaaa-aaaaj-aaaqa-cai 1006355
 ```
 
 4. Check that your donation is now confirmed.
-```
+```console
 $ dfx canister --network ic call x5dnh-yaaaa-aaaaj-aaaqa-cai currentDonations
 ```
 
 You can also check the total balance of donated cycles:
-```
+```console
 $ dfx canister --network ic call x5dnh-yaaaa-aaaaj-aaaqa-cai wallet_balance
 ```
 
