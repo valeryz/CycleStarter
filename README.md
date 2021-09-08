@@ -65,7 +65,11 @@ $ dfx canister --network ic call x5dnh-yaaaa-aaaaj-aaaqa-cai currentDonations
 You can also check the total balance of donated cycles:
 ```console
 $ dfx canister --network ic call x5dnh-yaaaa-aaaaj-aaaqa-cai wallet_balance
+(1_006_355 : nat)
 ```
+
+The cycles are collected at the moment, and there's no mechanism yet to distribute it to the projects. This could be achieved by writing the code that would allow them to security claim funds.
+
 
 ## TODO
 
